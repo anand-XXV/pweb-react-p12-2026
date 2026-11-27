@@ -39,7 +39,17 @@ Instruksi tidak mendefinisikan status yang masuk Response Rate atau Interview Ra
 
 ## Integrasi fitur 3–4
 
-Saat pipeline resmi siap, hapus import dan pemakaian `FeatureDemoPipeline` di `App.tsx`, lalu render komponen pipeline resmi dengan state `applications`, callback `updateApplication` (atau `setApplications`), dan callback `deleteApplication` dari `useUndoDelete`. Import dan render `<InterviewPrepTimer />` di detail resmi. Pastikan panel detail unmount ketika ditutup; bila detail bisa berpindah tanpa unmount, gunakan `key={application.id}` pada timer. Gunakan `isGhostingRisk` yang sama agar statistik dan badge konsisten. `UndoToast`, `DashboardStats`, dan `OfferComparator` tetap pada App. Jangan membuat state applications/localStorage kedua.
+Fitur 3–4 sudah terintegrasi di `src/components/WarRoom.tsx` dan
+`src/utils/applicationUtils.ts`. `App.tsx` memasang War Room pada navigasi
+Pipeline, meneruskan state bersama dari `useApplications`, serta menghubungkan
+transisi status, checklist, activity log, simulasi ghosting, dan Undo. Banner
+bentrok interview tetap berada di atas halaman agar tidak tersembunyi oleh
+filter. `InterviewPrepTimer` dirender di detail lamaran dan dibersihkan saat
+detail ditutup atau lamaran yang dipilih berubah.
+
+`FeatureDemoPipeline.tsx` adalah panel sementara dan telah digantikan oleh
+War Room; jangan mengintegrasikannya kembali sebagai pipeline kedua. Statistik,
+Undo, dan Offer Comparator tetap menggunakan state aplikasi yang sama.
 
 ## Status verifikasi
 

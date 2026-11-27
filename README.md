@@ -1,4 +1,4 @@
-# pweb-ts-p12-2026
+# Aku Mw Magang — pweb-react-p12-2026
 
 ## Daftar Anggota Kelompok A12
 | Nama | NRP |
@@ -20,3 +20,7 @@ npm run dev
 npm run lint
 npm run build
 ```
+
+Seluruh aplikasi React + TypeScript dijalankan dari root repository. Komponen
+eksplorasi lowongan, War Room pipeline, latihan interview, statistik, Undo, dan
+Offer Comparator berbagi satu state lamaran dan penyimpanan lokal.

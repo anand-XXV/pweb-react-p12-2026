@@ -5,6 +5,7 @@ import type {
   ApplicationStatus,
   WorkMode,
 } from '../types/application'
+import { InterviewPrepTimer } from './InterviewPrepTimer'
 import {
   formatRupiah,
   formatShortDate,
@@ -48,6 +49,7 @@ interface WarRoomProps {
     status: ApplicationStatus,
     details: TransitionDetails,
   ) => void
+  onDelete: (id: string) => void
   onChecklistAdd: (id: string, text: string) => void
   onChecklistToggle: (id: string, itemId: string) => void
   onChecklistRemove: (id: string, itemId: string) => void
@@ -294,6 +296,13 @@ export function WarRoom(props: WarRoomProps) {
                         Simulasi +15 Hari
                       </button>
                     )}
+                    <button
+                      className="text-button danger-text"
+                      type="button"
+                      onClick={() => props.onDelete(application.id)}
+                    >
+                      Hapus
+                    </button>
                   </div>
                 </article>
               )
@@ -555,6 +564,8 @@ function ApplicationDetail({
           </p>
         )}
       </section>
+
+      <InterviewPrepTimer />
 
       <section className="detail-section">
         <h4>Perbarui Status</h4>

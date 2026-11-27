@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DashboardStats } from './components/DashboardStats'
-import { FeatureDemoPipeline } from './components/FeatureDemoPipeline'
+import { InterviewConflictBanner, WarRoom } from './components/WarRoom'
 import { OfferComparator } from './components/OfferComparator'
 import { UndoToast } from './components/UndoToast'
 import { useUndoDelete } from './hooks/useUndoDelete'
@@ -11,8 +11,19 @@ import { useApplications } from './hooks/useApplications'
 import { useDebounce } from './hooks/useDebounce'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { fetchFallbackJobs, fetchRemoteJobs } from './services/jobService'
-import type { Application, ApplicationDraft } from './types/application'
+import type {
+  ActivityLog,
+  Application,
+  ApplicationDraft,
+  ApplicationStatus,
+  ChecklistItem,
+} from './types/application'
 import type { JobListing } from './types/job'
+import {
+  buildTransitionLogMessage,
+  isValidTransition,
+  type TransitionDetails,
+} from './utils/applicationUtils'
 import {
   calculateSkillMatch,
   getCategories,
@@ -45,6 +56,7 @@ function App() {
   const [loadMessage, setLoadMessage] = useState<string | null>(null)
   const [showManualForm, setShowManualForm] = useState(false)
   const [activePage, setActivePage] = useState<'explore' | 'pipeline' | 'offers'>('explore')
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null)
   const debouncedSearch = useDebounce(search, 400)
   const {
     applications,
@@ -55,9 +67,88 @@ function App() {
   const { pending, deleteApplication, undoDelete } = useUndoDelete(applications, setApplications)
   // Reservasi pasangan company + role selama Undo tersedia, agar tidak muncul duplikat saat dipulihkan.
   const duplicateCheckApplications = pending ? [...applications, pending.application] : applications
+  const selectedApplication = applications.find((application) => application.id === selectedApplicationId)
 
   function updateApplication(id: string, updater: (application: Application) => Application) {
     setApplications((current) => current.map((application) => application.id === id ? updater(application) : application))
+  }
+
+  function transitionApplication(
+    id: string,
+    status: ApplicationStatus,
+    details: TransitionDetails,
+  ) {
+    const current = applications.find((application) => application.id === id)
+    if (!current || !isValidTransition(current.status, status)) return
+
+    const now = new Date().toISOString()
+    const log: ActivityLog = {
+      id: crypto.randomUUID(),
+      timestamp: now,
+      message: buildTransitionLogMessage(current.status, status, details),
+    }
+
+    updateApplication(id, (application) => ({
+      ...application,
+      ...details,
+      status,
+      lastUpdatedAt: now,
+      activityLogs: [...application.activityLogs, log],
+    }))
+  }
+
+  function addChecklistItem(id: string, text: string) {
+    const item: ChecklistItem = {
+      id: crypto.randomUUID(),
+      text,
+      done: false,
+    }
+    updateApplication(id, (application) => ({
+      ...application,
+      checklist: [...application.checklist, item],
+    }))
+  }
+
+  function toggleChecklistItem(id: string, itemId: string) {
+    updateApplication(id, (application) => ({
+      ...application,
+      checklist: application.checklist.map((item) =>
+        item.id === itemId ? { ...item, done: !item.done } : item,
+      ),
+    }))
+  }
+
+  function removeChecklistItem(id: string, itemId: string) {
+    updateApplication(id, (application) => ({
+      ...application,
+      checklist: application.checklist.filter((item) => item.id !== itemId),
+    }))
+  }
+
+  function addActivityNote(id: string, note: string) {
+    const log: ActivityLog = {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      message: note,
+    }
+    updateApplication(id, (application) => ({
+      ...application,
+      activityLogs: [...application.activityLogs, log],
+    }))
+  }
+
+  function simulateGhosting(id: string) {
+    updateApplication(id, (application) => ({
+      ...application,
+      lastUpdatedAt: new Date(
+        Date.parse(application.lastUpdatedAt) - 15 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    }))
+  }
+
+  function removeApplication(id: string) {
+    if (selectedApplicationId === id) setSelectedApplicationId(null)
+    deleteApplication(id)
   }
 
   useEffect(() => {
@@ -227,6 +318,8 @@ function App() {
       </header>
 
       <main className="workspace">
+        <InterviewConflictBanner applications={applications} />
+
         <section className="page-heading">
           <div>
             <p className="eyebrow">RUANG KERJA KAPTEN</p>
@@ -256,7 +349,24 @@ function App() {
           />
         )}
 
-        {activePage === 'pipeline' && <FeatureDemoPipeline applications={applications} skills={skills} onUpdate={updateApplication} onDelete={deleteApplication} />}
+        {activePage === 'pipeline' && (
+          <WarRoom
+            applications={applications}
+            skills={skills}
+            selected={selectedApplication}
+            onSelect={(id) =>
+              setSelectedApplicationId((current) => current === id ? null : id)
+            }
+            onCloseDetail={() => setSelectedApplicationId(null)}
+            onTransition={transitionApplication}
+            onDelete={removeApplication}
+            onChecklistAdd={addChecklistItem}
+            onChecklistToggle={toggleChecklistItem}
+            onChecklistRemove={removeChecklistItem}
+            onAddNote={addActivityNote}
+            onSimulateGhosting={simulateGhosting}
+          />
+        )}
         {activePage === 'offers' && <OfferComparator applications={applications} skills={skills} />}
         {activePage === 'explore' && <div className="explorer-layout">
           <aside className="sidebar">

@@ -1,5 +1,6 @@
 import type { Application, ApplicationStatus, WorkMode } from '../types/application'
 import { calculateSkillMatch } from './jobUtils'
+import { isGhostingRisk } from './statistics'
 
 export interface TransitionDetails {
   cvVersion?: string
@@ -15,8 +16,8 @@ export interface InterviewConflict {
   minutesApart: number
 }
 
-const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000
 const CONFLICT_WINDOW_MINUTES = 60
+const CONFLICT_WINDOW_MS = CONFLICT_WINDOW_MINUTES * 60_000
 
 const statusTransitions: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
   WISHLIST: ['APPLIED'],
@@ -40,9 +41,7 @@ export function isValidTransition(
 }
 
 export function isAtRiskOfGhosting(application: Application, now = Date.now()): boolean {
-  if (application.status !== 'APPLIED' && application.status !== 'SCREENING') return false
-  const updatedAt = Date.parse(application.lastUpdatedAt)
-  return Number.isFinite(updatedAt) && now - updatedAt > FOURTEEN_DAYS_MS
+  return isGhostingRisk(application, now)
 }
 
 export function getInterviewConflicts(
@@ -68,8 +67,9 @@ export function getInterviewConflicts(
       const second = interviews[nextIndex]
       if (!second) continue
 
-      const minutesApart = Math.round((second.time - first.time) / 60_000)
-      if (minutesApart < CONFLICT_WINDOW_MINUTES) {
+      const difference = second.time - first.time
+      if (difference < CONFLICT_WINDOW_MS) {
+        const minutesApart = Math.floor(difference / 60_000)
         conflicts.push({
           first: first.application,
           second: second.application,
