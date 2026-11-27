@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { DashboardStats } from './components/DashboardStats'
+import { FeatureDemoPipeline } from './components/FeatureDemoPipeline'
+import { OfferComparator } from './components/OfferComparator'
+import { UndoToast } from './components/UndoToast'
+import { useUndoDelete } from './hooks/useUndoDelete'
 import { JobCard } from './components/JobCard'
 import { ManualApplicationForm } from './components/ManualApplicationForm'
 import { SkillProfile } from './components/SkillProfile'
@@ -39,12 +44,21 @@ function App() {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [loadMessage, setLoadMessage] = useState<string | null>(null)
   const [showManualForm, setShowManualForm] = useState(false)
+  const [activePage, setActivePage] = useState<'explore' | 'pipeline' | 'offers'>('explore')
   const debouncedSearch = useDebounce(search, 400)
   const {
     applications,
     addApplication,
+    setApplications,
     storageError: applicationsStorageError,
   } = useApplications()
+  const { pending, deleteApplication, undoDelete } = useUndoDelete(applications, setApplications)
+  // Reservasi pasangan company + role selama Undo tersedia, agar tidak muncul duplikat saat dipulihkan.
+  const duplicateCheckApplications = pending ? [...applications, pending.application] : applications
+
+  function updateApplication(id: string, updater: (application: Application) => Application) {
+    setApplications((current) => current.map((application) => application.id === id ? updater(application) : application))
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -156,7 +170,7 @@ function App() {
 
   function saveToWishlist(job: JobListing) {
     if (
-      isDuplicateApplication(applications, job.company_name, job.title)
+      isDuplicateApplication(duplicateCheckApplications, job.company_name, job.title)
     ) {
       return
     }
@@ -193,6 +207,11 @@ function App() {
           </span>
           <span>Aku Mw Magang</span>
         </a>
+        <nav className="feature-nav" aria-label="Navigasi utama">
+          <button type="button" aria-pressed={activePage === 'explore'} onClick={() => setActivePage('explore')}>Eksplorasi Lowongan</button>
+          <button type="button" aria-pressed={activePage === 'pipeline'} onClick={() => setActivePage('pipeline')}>Pipeline ({applications.length})</button>
+          <button type="button" aria-pressed={activePage === 'offers'} onClick={() => setActivePage('offers')}>Bandingkan Offer</button>
+        </nav>
         <div className="topbar-actions">
           <span className="application-count">
             Pipeline Lamaran <strong>{applications.length}</strong>
@@ -211,14 +230,13 @@ function App() {
         <section className="page-heading">
           <div>
             <p className="eyebrow">RUANG KERJA KAPTEN</p>
-            <h1>Eksplorasi Lowongan</h1>
+            <h1>{activePage === 'explore' ? 'Eksplorasi Lowongan' : activePage === 'pipeline' ? 'Pipeline Lamaran' : 'Offer Comparator'}</h1>
             <p className="heading-copy">
-              Temukan posisi magang yang cocok dengan skill dan catat setiap
-              lamaran dengan rapi.
+              {activePage === 'explore' ? 'Temukan posisi magang yang cocok dengan skill dan catat setiap lamaran dengan rapi.' : activePage === 'pipeline' ? 'Kelola lamaran dan siapkan wawancara.' : 'Bandingkan tawaran magang berdasarkan skor berbobot.'}
             </p>
           </div>
           <div className="result-count" aria-live="polite">
-            {loadState === 'ready' ? `${filteredJobs.length} lowongan` : ''}
+            {activePage === 'explore' && loadState === 'ready' ? `${filteredJobs.length} lowongan` : ''}
           </div>
         </section>
 
@@ -228,15 +246,19 @@ function App() {
           </div>
         )}
 
+        <DashboardStats applications={applications} />
+
         {showManualForm && (
           <ManualApplicationForm
-            applications={applications}
+            applications={duplicateCheckApplications}
             onClose={() => setShowManualForm(false)}
             onSubmit={createApplication}
           />
         )}
 
-        <div className="explorer-layout">
+        {activePage === 'pipeline' && <FeatureDemoPipeline applications={applications} skills={skills} onUpdate={updateApplication} onDelete={deleteApplication} />}
+        {activePage === 'offers' && <OfferComparator applications={applications} skills={skills} />}
+        {activePage === 'explore' && <div className="explorer-layout">
           <aside className="sidebar">
             <SkillProfile skills={skills} onChange={setSkills} />
             <section className="sidebar-section source-section">
@@ -379,7 +401,7 @@ function App() {
                     candidateSkills={skills}
                     matchScore={calculateSkillMatch(skills, job.tags)}
                     alreadyApplied={isDuplicateApplication(
-                      applications,
+                      duplicateCheckApplications,
                       job.company_name,
                       job.title,
                     )}
@@ -389,8 +411,9 @@ function App() {
               </div>
             )}
           </section>
-        </div>
+        </div>}
       </main>
+      {pending && <UndoToast key={pending.application.id} company={pending.application.company} expiresAt={pending.expiresAt} onUndo={undoDelete} />}
     </div>
   )
 }
